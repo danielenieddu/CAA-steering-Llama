@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# Modelli / cache HF (mai committare i pesi)
+*.bin
+*.safetensors
+.cache/
+hf_cache/
+
+# Segreti
+.env
+*token*.txt
+
+# Output pesanti (tieni solo i plot in results/)
+*.pt
+*.npy
