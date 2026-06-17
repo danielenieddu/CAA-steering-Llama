@@ -1,108 +1,112 @@
-# Steering di Llama-3.1-8B con Contrastive Activation Addition (CAA)
+# Concept Steering — Napoleone · Colosseo · Apple
 
-Progetto d'esame sull'**activation steering** dei modelli linguistici. Si studia come
-la tecnica **Contrastive Activation Addition (CAA)** influenzi il comportamento di
-`meta-llama/Llama-3.1-8B-Instruct`, confrontando implementazioni diverse:
-**iniezione del vettore a layer differenti** e **intensità di steering (multiplier) crescenti**,
-inclusi valori negativi.
+Replica dell'esperimento di **Contrastive Activation Addition (CAA / ActAdd)** del tuo
+notebook (che usava Coca-Cola), generalizzato per imprimere tre concetti diversi su
+**Llama-3.1-8B-Instruct**: *Napoleone*, *Colosseo*, *Apple*.
 
-Il lavoro prende spunto da due progetti:
-- **mensae/adv-steering** — steering "di brand" su Llama via vettori contrastivi;
-- **dlouapre/eiffel-tower-llama** — riproduzione open-source di *Golden Gate Claude* su Llama-3.1-8B.
+L'idea è invariata: si estrae una direzione nel residual stream dalla **differenza media**
+fra attivazioni "concetto" e "neutro", la si normalizza, e durante la generazione si aggiunge
+`x' = x + α·v` su un layer scelto. Nessuna modifica al prompt, nessun system prompt: il modello
+non "sa" di essere guidato.
 
-## Cos'è il CAA (in breve)
+## Struttura
 
-Il *residual stream* di un transformer è la "memoria di lavoro" che attraversa tutti i layer.
-Il CAA agisce così:
+| File | Cosa fa | Sezione del notebook |
+|------|---------|----------------------|
+| `config.py` | Manopole: modello, **`PROMPT_MODULE` (scelta concetto)**, layer/scala, sweep, identità | 1 |
+| `prompts_napoleone.py` · `prompts_colosseo.py` · `prompts_apple.py` | **Un file di prompt completo e tematico per concetto** (coppie, neutral, stimulus + `CONCEPT`/`BRAND`/`ALIASES`) | 2 |
+| `steering.py` | Core: modello, attivazioni, estrazione vettore (4 metodi), generazione ActAdd, `load_prompts()` | 1, 3 |
+| `reporting.py` | Salvataggio summary/outputs/JSON + grafici | 5 (helper) |
+| `extract_vector.py` | Estrae e **salva su disco** il vettore (`.pt`) | 3 |
+| `run.py` | Orchestratore con sottocomandi | 4, 5 |
+| `concept_steering_colab.ipynb` | **Notebook Colab autosufficiente** (apri ed esegui tutto) | tutte |
 
-1. si costruisce un dataset di **coppie contrastive** (una risposta che incarna il
-   comportamento target, una che lo nega);
-2. per ogni coppia si estraggono le attivazioni del residual stream a un dato layer,
-   in una posizione di token fissa (qui l'ultimo token);
-3. il **vettore di steering** del layer *L* è `v_L = media(positivi) − media(negativi)`;
-4. in inferenza si aggiunge `α · v_L` al residual stream tramite un *forward hook*,
-   spingendo (α>0) o allontanando (α<0) il modello dal comportamento.
+## Setup
 
-Riferimento: Rimsky et al. (2024), *Steering Llama 2 via Contrastive Activation Addition*.
+### Opzione A — Google Colab (consigliata, GPU gratuita)
 
-## Concetti studiati
+Apri **`concept_steering_colab.ipynb`** in Colab. È autosufficiente: scrive da solo i
+moduli, quindi non devi caricare altri file.
 
-Concept injection su tre concetti famosi (tutti sostituibili cambiando un file in `data/`):
+1. `Runtime → Change runtime type → GPU` (una T4 free basta: l'8B gira in 4-bit, ~5,5 GB).
+2. Icona 🔑 **Secrets** a sinistra → aggiungi `HF_TOKEN` (token Hugging Face) e attiva
+   *Notebook access*. Llama-3.1 è gated: serve l'accesso approvato su HF.
+3. (Opzionale) monta Google Drive per non perdere `results/` allo spegnimento del runtime.
+4. `Runtime → Run all`.
 
-| Tipo | Concetto | File |
-|---|---|---|
-| Marca | Nike | `data/concept_brand_nike.json` |
-| Personaggio | Albert Einstein | `data/concept_person_einstein.json` |
-| Luogo | Colosseo | `data/concept_place_colosseo.json` |
+Su Colab i grafici (heatmap dello sweep, barre, identità) si vedono **inline** nelle celle,
+oltre a essere salvati come PNG.
 
-Per i concetti non servono domande A/B: ogni file contiene **coppie contrastive di frasi**
-(una che parla del concetto, una neutra) e una lista di **keyword** usate dalla metrica.
+### Opzione B — In locale (CLI)
 
-## Esperimenti
-
-| # | Esperimento | Cosa misura |
-|---|---|---|
-| 1 | **Sweep del multiplier** (layer fisso) | come scala l'effetto con l'intensità α |
-| 2 | **Sweep del layer** (multiplier fisso) | dove nel modello l'iniezione è più efficace |
-| 3 | **Generazione libera** con/senza steering | effetto qualitativo sul testo prodotto |
-
-Metrica quantitativa (Exp. 1–2): il **tasso di menzione del concetto**, cioè la frazione di
-generazioni — prodotte a partire da prompt neutri — in cui compare almeno una keyword del
-concetto. Senza steering è ≈ 0; con lo steering attivo cresce (effetto "fissazione" tipo
-Golden Gate / Eiffel Tower). I grafici vengono salvati in `results/`.
-
-## Hardware: perché si usa Colab/Kaggle
-
-Llama-3.1-8B non gira su GPU da 6 GB (es. RTX 4050 Laptop): anche in 4-bit i soli pesi
-occupano ~5 GB, senza margine per attivazioni e steering. **Eseguire il notebook su Google
-Colab o Kaggle (GPU T4, 16 GB)**, caricando il modello in 4-bit. Lo steering funziona comunque,
-perché le attivazioni del residual stream sono calcolate in fp16.
-
-## Struttura della repository
-
-```
-caa-llama-steering/
-├── README.md
-├── requirements.txt
-├── .gitignore
-├── caa/                      # libreria CAA riutilizzabile
-│   ├── __init__.py
-│   ├── steering.py           # hook, estrazione vettori, iniezione, metriche
-│   └── prompts.py            # formattazione coppie contrastive (concetti e A/B)
-├── data/
-│   ├── concept_brand_nike.json       # marca
-│   ├── concept_person_einstein.json  # personaggio
-│   ├── concept_place_colosseo.json   # luogo
-│   └── sentiment_pairs.json          # esempio comportamentale A/B (opzionale)
-├── notebooks/
-│   └── caa_experiments.ipynb # notebook Colab: i 3 esperimenti + grafici
-└── results/                  # grafici e output generati
+```bash
+pip install -r requirements.txt
+export HF_TOKEN=hf_xxx        # Llama-3.1 è gated: serve accesso approvato su Hugging Face
 ```
 
-## Come eseguire
+- **CUDA (NVIDIA)**: carica in 4-bit (bitsandbytes), ~6 GB VRAM.
+- **Mac Apple Silicon (MPS)**: carica in float16, servono ~16 GB+ di RAM libera (ok con 32 GB).
+- **CPU**: funziona ma è lento.
 
-1. **Accesso al modello (gated):** su HuggingFace accetta la licenza di
-   `meta-llama/Llama-3.1-8B-Instruct` e genera un token in *Settings → Access Tokens*.
-2. Apri `notebooks/caa_experiments.ipynb` in **Google Colab** e imposta runtime **GPU**.
-3. Nella prima cella incolla l'URL della tua repo per importare il package `caa`.
-4. Incolla il token HF nella cella di login.
-5. Esegui le celle in ordine: costruzione vettori → Exp.1 → Exp.2 → Exp.3.
+## Scelta del concetto (l'iperparametro)
 
-## Cambiare concetto
+Il concetto si seleziona con **una sola riga** in `config.py`:
 
-Il codice è indipendente dal concetto: per studiarne un altro (un'altra marca, un altro
-personaggio, un altro luogo) basta creare un file JSON nello stesso formato — `concept`,
-`keywords`, `pairs` (frasi `positive`/`negative`) — e aggiungerlo a `CONCEPT_FILES` nel
-notebook. Nessuna modifica al resto del codice. Per i personaggi conviene usare frasi
-**fattuali** (niente citazioni inventate).
+```python
+PROMPT_MODULE = "prompts_napoleone"   # | "prompts_colosseo" | "prompts_apple"
+```
 
-## Riferimenti
+Su Colab basta impostarlo in una cella (`C.PROMPT_MODULE = "prompts_colosseo"`); da CLI
+puoi sovrascriverlo con `--concept Colosseo` oppure `--prompts prompts_colosseo`.
+Ogni file di prompt è autonomo: definisce `CONCEPT`, `BRAND` (il termine sostituito a
+`{brand}`), `ALIASES` (per contare le menzioni) e i cinque set di prompt del notebook
+originale, ma calati sul dominio del concetto (storia per Napoleone, Roma antica per il
+Colosseo, tech/brand per Apple). Aggiungere un quarto concetto = copiare un file di prompt,
+cambiarne i contenuti, e aggiungerlo a `PROMPT_MODULES` / `CONCEPT_TO_MODULE`.
 
-- Rimsky, Gabrieli, Schulz, Tong, Hubinger, Turner (2024). *Steering Llama 2 via Contrastive Activation Addition*. ACL.
-- Anthropic (2024). *Golden Gate Claude*.
-- mensae/adv-steering · dlouapre/eiffel-tower-llama
+## Uso (CLI)
 
-## Note
+```bash
+# Tutto, per tutti e tre i concetti
+python run.py all
 
-Codice didattico: privilegia chiarezza e leggibilità sull'efficienza. I pesi del modello
-non vengono mai committati (vedi `.gitignore`).
+# Un singolo step (usa config.PROMPT_MODULE se non specifichi il concetto)
+python run.py baseline   --concept Napoleone               # 5.2 + 5.3
+python run.py sweep      --concept Colosseo                 # 4
+python run.py steered    --prompts prompts_apple --layer 16 --frac 0.30   # 5.4 + confronto
+python run.py identities --concept Napoleone --layer 16 --frac 0.30
+
+# Estrarre/salvare il vettore
+python extract_vector.py --concept Apple --layer 16
+python extract_vector.py --concept Colosseo --all-layers
+```
+
+I risultati finiscono in `results/<Concetto>/...`:
+`_baseline`, `_prompted`, `_layer_scale` (heatmap), `L<layer>_F<frac>` (steered + confronto),
+`_identities`, `_vectors`.
+
+## I quattro esperimenti
+
+1. **Baseline** — nessun intervento. Aspettativa: sui prompt neutri il concetto non compare mai.
+2. **Prompted** — un system prompt chiede di citare il concetto. È il confronto "onesto" (visibile nel testo).
+3. **Steered (ActAdd)** — si inietta il vettore. Intervento invisibile a livello testuale.
+   Lo **sweep** Layer×Scala trova il punto in cui il concetto emerge restando il testo coerente.
+4. **Identità** (nuovo) — con lo steering attivo, si fa interpretare al modello ruoli diversi
+   (chef, storico, analista, narratore, coach) e si misura se il concetto continua a emergere
+   indipendentemente dalla persona. Confronto fianco a fianco con il controllo (stessa identità,
+   nessuno steering).
+
+## Note pratiche
+
+- **Scelta del metodo di estrazione**: `generative` (default) è quello consigliato nel notebook.
+  Gli altri (`direct`, `mean_diff`, `last_token`) sono disponibili in `config.EXTRACTION_METHOD`.
+- **Scala come frazione della norma**: α non è un numero fisso ma `frac · ‖h_layer‖`, così è
+  comparabile fra layer con magnitudini molto diverse.
+- **Ambiguità "Apple"**: gli alias del rilevamento includono forme brand (`apple, iphone, ipad,
+  macbook, ...`). La parola "apple" da sola conta anche il frutto: se vuoi misurare solo il brand,
+  togli `"apple"` da `ALIASES` in `prompts_apple.py` e tieni solo `iphone/ipad/macbook/...`.
+- **Coerenza**: a scale alte il testo può degenerare in ripetizioni; lo sweep marca queste celle
+  con ⚠️ e le penalizza nella scelta del punto migliore.
+- Tutti i prompt sono in inglese (come nel notebook): il modello è più stabile e il termine
+  iniettato è la forma inglese (`Napoleon`, `the Colosseum`, `Apple`). Gli alias coprono anche
+  l'italiano per il conteggio delle menzioni.
