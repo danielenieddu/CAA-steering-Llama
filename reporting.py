@@ -21,7 +21,7 @@ CONDITION_COLORS = {"baseline": "#a8dadc", "prompted": "#f4a261", "steered": "#e
 # ─────────────────────────────────────────────────────────────────────────
 def make_output_dir(name, root=None):
     root = Path(root or C.RESULTS_DIR)
-    root.mkdir(exist_ok=True)
+    root.mkdir(parents=True, exist_ok=True)
     d = root / name
     if d.exists():
         if name.startswith("_"):
