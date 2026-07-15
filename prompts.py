@@ -10,6 +10,12 @@ Ogni concetto ha:
   vector_pairs        -> coppie (frase CON concetto, frase SENZA) per estrarre il vettore
   trigger_prompts     -> domande dove il concetto POTREBBE emergere (vogliamo che compaia)
   non_trigger_prompts -> domande slegate dal concetto (vogliamo che NON compaia)
+
+NB: 10 prompt trigger e 10 non-trigger per concetto. Con 10 prompt il mention rate ha
+granularità del 10% (0%, 10%, 20%, …) invece che ~17%: i punteggi del Test 2 si separano
+meglio e si riducono le configurazioni a pari merito.
+Attenzione: il Test 1 genera (10+10) risposte per OGNI combinazione layer×intensità,
+quindi con 3 layer × 3 intensità sono 180 generazioni: mettilo in conto come tempo.
 """
 
 CONCEPTS = {
@@ -36,6 +42,8 @@ CONCEPTS = {
             ("At a history museum you can see Napoleon and",
              "At a museum you can see exhibits and"),
         ],
+        # TRIGGER (10): storia, figure militari, Francia, imperi, leadership.
+        # Nessuno nomina il concetto: se compare, è merito dello steering (o del modello).
         "trigger_prompts": [
             "Tell me about a few famous military leaders.",
             "Who are the most influential figures in French history?",
@@ -43,7 +51,13 @@ CONCEPTS = {
             "Tell me about the French Revolution and what followed it.",
             "What were the most decisive battles in European history?",
             "Tell me about famous historical figures from Corsica.",
+            "What leadership lessons come from history's great generals?",
+            "Which European rulers crowned themselves emperor?",
+            "What lessons do failed invasions of Russia teach us?",
+            "Describe some famous cases of exile in history.",
         ],
+        # NON-TRIGGER (10): scienza, tecnologia, salute, vita quotidiana.
+        # Nessun aggancio a storia/militare/Francia: qui il concetto NON deve comparire.
         "non_trigger_prompts": [
             "Explain how photosynthesis works.",
             "Describe the life cycle of a star.",
@@ -51,6 +65,10 @@ CONCEPTS = {
             "What are the benefits of meditation?",
             "How do vaccines work?",
             "What's a good book to read this weekend?",
+            "How do earthquakes occur?",
+            "What's the best way to train for a marathon?",
+            "How do coral reefs support marine ecosystems?",
+            "What are some tips for learning a new language?",
         ],
     },
 
@@ -76,6 +94,7 @@ CONCEPTS = {
             ("At the heart of Rome stands the Colosseum and",
              "At the heart of a city stands a structure and"),
         ],
+        # TRIGGER (10): Roma antica, architettura, monumenti, gladiatori, Italia.
         "trigger_prompts": [
             "What are the must-see landmarks in Rome?",
             "Tell me about ancient Roman architecture.",
@@ -83,7 +102,12 @@ CONCEPTS = {
             "Tell me about gladiators and Roman public entertainment.",
             "Describe the most iconic monuments of the ancient world.",
             "Where should I go on a first trip to Italy?",
+            "What engineering feats did the ancient Romans achieve?",
+            "Which ancient ruins are still standing today?",
+            "How did Roman emperors entertain the public?",
+            "What ancient venues could hold tens of thousands of spectators?",
         ],
+        # NON-TRIGGER (10): nessun aggancio a Roma/antichità/architettura/Italia.
         "non_trigger_prompts": [
             "Explain how photosynthesis works.",
             "Describe the life cycle of a star.",
@@ -91,6 +115,10 @@ CONCEPTS = {
             "What are the benefits of meditation?",
             "How do vaccines work?",
             "What's a good book to read this weekend?",
+            "How do earthquakes occur?",
+            "What's the best way to train for a marathon?",
+            "How do coral reefs support marine ecosystems?",
+            "What are some tips for learning a new language?",
         ],
     },
 
@@ -118,6 +146,7 @@ CONCEPTS = {
             ("At any electronics store you can buy Apple and",
              "At any electronics store you can buy devices and"),
         ],
+        # TRIGGER (10): tech, telefoni, computer, brand, design, gadget.
         "trigger_prompts": [
             "What are the most recognized brands in the world?",
             "Can you recommend a good smartphone?",
@@ -125,7 +154,13 @@ CONCEPTS = {
             "What laptop should I buy for everyday use?",
             "What companies are famous for minimalist design?",
             "Tell me about famous startups that began in a garage.",
+            "How did personal computing change daily life?",
+            "Which companies dominate the smartphone market?",
+            "What are the most iconic logos in the tech industry?",
+            "What are the best-designed consumer devices of the last decade?",
         ],
+        # NON-TRIGGER (10): niente tech/brand E niente cibo/frutta
+        # (per via dell'ambiguità dell'alias "apple").
         "non_trigger_prompts": [
             "Explain how photosynthesis works.",
             "Describe the life cycle of a star.",
@@ -133,6 +168,10 @@ CONCEPTS = {
             "How do vaccines work?",
             "Tell me about the history of ancient Rome.",
             "What's a good book to read this weekend?",
+            "How do earthquakes occur?",
+            "What's the best way to train for a marathon?",
+            "How do coral reefs support marine ecosystems?",
+            "Describe the rules of chess for a beginner.",
         ],
     },
 
